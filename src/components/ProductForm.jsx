@@ -1,10 +1,20 @@
 import React, { useEffect, useState } from 'react'
 
 export default function ProductForm({ onSubmit, onCancel, initial }){
-  const [form, setForm] = useState({ name:'', category:'Fertilizer', price:'', quantity:'', expiry:'' })
+  const [form, setForm] = useState({ name:'', category:'Fertilizer', price:'', quantity:'', unit:'pcs', expiry:'' })
   const [errors, setErrors] = useState({})
-  useEffect(()=>{ if(initial) setForm(initial) },[initial])
+  
+  useEffect(()=>{ 
+    if(initial) {
+      setForm({
+        ...initial,
+        expiry: initial.expiry ? new Date(initial.expiry).toISOString().split('T')[0] : ''
+      })
+    }
+  },[initial])
+  
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value })
+  
   const validate = () => {
     const e = {}
     if(!form.name) e.name = 'Required'
@@ -14,7 +24,19 @@ export default function ProductForm({ onSubmit, onCancel, initial }){
     setErrors(e)
     return Object.keys(e).length===0
   }
-  const submit = ev => { ev.preventDefault(); if(validate()) onSubmit({ ...form, price:Number(form.price), quantity:Number(form.quantity) }) }
+  
+  const submit = ev => { 
+    ev.preventDefault()
+    if(validate()) {
+      onSubmit({ 
+        ...form, 
+        price: Number(form.price), 
+        quantity: Number(form.quantity),
+        expiry: new Date(form.expiry).toISOString()
+      }) 
+    }
+  }
+  
   return (
     <form onSubmit={submit} className="row g-3">
       <div className="col-md-6">
@@ -22,12 +44,23 @@ export default function ProductForm({ onSubmit, onCancel, initial }){
         <input className={`form-control ${errors.name?'is-invalid':''}`} name="name" value={form.name} onChange={handleChange} />
         {errors.name && <div className="invalid-feedback">{errors.name}</div>}
       </div>
-      <div className="col-md-6">
+      <div className="col-md-4">
         <label className="form-label">Category</label>
         <select className="form-select" name="category" value={form.category} onChange={handleChange}>
           <option>Fertilizer</option>
           <option>Seed</option>
           <option>Medicine</option>
+          <option>Herbicides</option>
+          <option>Fungicides</option>
+          <option>Insecticides</option>
+        </select>
+      </div>
+      <div className="col-md-2">
+        <label className="form-label">Unit</label>
+        <select className="form-select" name="unit" value={form.unit} onChange={handleChange}>
+          <option value="pcs">pcs</option>
+          <option value="kg">kg</option>
+          <option value="litre">litre</option>
         </select>
       </div>
       <div className="col-md-4">

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { getPredictionBreakdown, getPredictions, getProducts } from '../services/api'
+import { useStockThreshold } from '../contexts/StockThresholdContext'
 import { DemandPie } from '../components/Charts'
 
 export default function Prediction(){
@@ -12,6 +13,7 @@ export default function Prediction(){
     getProducts().then(setProducts)
   },[])
   const rows = useMemo(()=> preds.map(p=> ({...p, current: products.find(x=>x.id===p.id)?.quantity||0})), [preds, products])
+  const { threshold } = useStockThreshold()
   return (
     <div className="d-grid gap-3">
       <h5>Seasonal Demand Prediction</h5>
@@ -38,7 +40,7 @@ export default function Prediction(){
                   {rows.map(r=> (
                     <tr key={r.id}>
                       <td>{r.name}</td>
-                      <td className={r.current<10?'low-stock':''}>{r.current}</td>
+                      <td className={r.current<threshold?'low-stock':''}>{r.current}</td>
                       <td>
                         <span className={`badge ${r.level==='High'?'text-bg-success': r.level==='Medium'?'text-bg-warning':'text-bg-danger'}`}>{r.level}</span>
                       </td>

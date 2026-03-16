@@ -1,66 +1,170 @@
 import axios from 'axios'
 
-let PRODUCTS = [
-  { id: 'p1', name: 'Urea 46% N', category: 'Fertilizer', price: 600, quantity: 25, expiry: '2026-12-31' },
-  { id: 'p2', name: 'DAP 18-46-0', category: 'Fertilizer', price: 1450, quantity: 8, expiry: '2026-10-01' },
-  { id: 'p3', name: 'Hybrid Maize Seeds', category: 'Seed', price: 2500, quantity: 40, expiry: '2027-06-15' },
-  { id: 'p4', name: 'Cotton Pesticide', category: 'Medicine', price: 950, quantity: 6, expiry: '2026-03-20' },
-  { id: 'p5', name: 'Potash 60% K', category: 'Fertilizer', price: 1200, quantity: 15, expiry: '2026-08-30' }
-]
-
-const wait = (ms)=> new Promise(res=>setTimeout(res, ms))
+const API_BASE_URL = 'http://localhost:5000/api'
 
 export async function login({ username, password }){
-  await wait(500)
   if(username && password) return { token: 'ok' }
   throw new Error('Invalid')
 }
 
-export async function getProducts(){ await wait(200); return [...PRODUCTS] }
-export async function addProduct(data){ await wait(200); PRODUCTS = [{ id: 'p'+(Date.now()), ...data }, ...PRODUCTS] }
-export async function updateProduct(id, data){ await wait(200); PRODUCTS = PRODUCTS.map(p=> p.id===id ? { ...p, ...data } : p) }
-export async function deleteProduct(id){ await wait(200); PRODUCTS = PRODUCTS.filter(p=> p.id!==id) }
-export async function getLowStock(){ await wait(150); return PRODUCTS.filter(p=> p.quantity<10) }
+// Product API calls
+export async function getProducts(){
+  try {
+    const response = await axios.get(`${API_BASE_URL}/products`)
+    return response.data.map(product => ({
+      ...product,
+      id: product._id
+    }))
+  } catch (error) {
+    console.error('Error fetching products:', error)
+    throw error
+  }
+}
 
-export async function getDashboardSummary(){
-  await wait(150)
-  const totalProducts = PRODUCTS.length
-  const lowStock = PRODUCTS.filter(p=>p.quantity<10).length
-  const monthlySales = 78500
-  const highDemand = 3
-  return { totalProducts, lowStock, monthlySales, highDemand }
+export async function addProduct(data){
+  try {
+    const response = await axios.post(`${API_BASE_URL}/products`, data)
+    return {
+      ...response.data.product,
+      id: response.data.product._id
+    }
+  } catch (error) {
+    console.error('Error adding product:', error)
+    throw error
+  }
+}
+
+export async function updateProduct(id, data){
+  try {
+    const response = await axios.put(`${API_BASE_URL}/products/${id}`, data)
+    return {
+      ...response.data.product,
+      id: response.data.product._id
+    }
+  } catch (error) {
+    console.error('Error updating product:', error)
+    throw error
+  }
+}
+
+export async function deleteProduct(id){
+  try {
+    await axios.delete(`${API_BASE_URL}/products/${id}`)
+  } catch (error) {
+    console.error('Error deleting product:', error)
+    throw error
+  }
+}
+export async function getLowStock(threshold = 10){
+  try {
+    const products = await getProducts()
+    return products.filter(p => p.quantity < threshold)
+  } catch (error) {
+    console.error('Error fetching low stock:', error)
+    throw error
+  }
+}
+
+export async function getDashboardSummary(threshold = 10){
+  try {
+    const products = await getProducts()
+    const totalProducts = products.length
+    const lowStock = products.filter(p => p.quantity < threshold).length
+    // compute monthly sales from bills
+    try {
+      const resp = await axios.get(`${API_BASE_URL}/bills`)
+      const bills = resp.data || []
+      const now = new Date()
+      const thisMonth = now.getMonth()
+      const thisYear = now.getFullYear()
+      const monthlySales = bills
+        .filter(b => {
+          const d = new Date(b.createdAt || b.created_at || b.date || b._id?.getTimestamp?.() )
+          return d.getMonth() === thisMonth && d.getFullYear() === thisYear
+        })
+        .reduce((s,b)=> s + (b.grandTotal || b.total || 0), 0)
+      const highDemand = 3
+      return { totalProducts, lowStock, monthlySales, highDemand }
+    } catch (err) {
+      // fallback
+      const monthlySales = 0
+      const highDemand = 3
+      return { totalProducts, lowStock, monthlySales, highDemand }
+    }
+  } catch (error) {
+    console.error('Error fetching dashboard summary:', error)
+    throw error
+  }
 }
 
 export async function getSalesTrends(){
-  await wait(150)
-  return [
-    { month:'Jan', sales: 4200 },
-    { month:'Feb', sales: 5100 },
-    { month:'Mar', sales: 4800 },
-    { month:'Apr', sales: 6200 },
-    { month:'May', sales: 6800 },
-    { month:'Jun', sales: 7200 },
-    { month:'Jul', sales: 7000 },
-    { month:'Aug', sales: 7600 },
-    { month:'Sep', sales: 6900 },
-    { month:'Oct', sales: 8100 },
-    { month:'Nov', sales: 8400 },
-    { month:'Dec', sales: 9000 }
-  ]
+  // generate sales per month for last 12 months from bills
+  try {
+    const resp = await axios.get(`${API_BASE_URL}/bills`)
+    const bills = resp.data || []
+    const now = new Date()
+    const months = []
+    for(let i=11;i>=0;i--){
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1)
+      months.push({ key: `${d.getFullYear()}-${d.getMonth()+1}`, label: d.toLocaleString(undefined,{month:'short'}), year: d.getFullYear(), month: d.getMonth(), sales:0 })
+    }
+    bills.forEach(b => {
+      const d = new Date(b.createdAt || b.created_at || b.date)
+      const mKey = `${d.getFullYear()}-${d.getMonth()+1}`
+      const entry = months.find(x=>x.key===mKey)
+      if(entry) entry.sales += (b.grandTotal || b.total || 0)
+    })
+    return months.map(m=>({ month: m.label, sales: m.sales }))
+  } catch (err) {
+    console.error('Error fetching bills for trends:', err)
+    return []
+  }
 }
 
-// prediction module removed
+export async function getBills(){
+  try {
+    const resp = await axios.get(`${API_BASE_URL}/bills`)
+    return resp.data.map(b => ({ ...b, id: b._id }))
+  } catch (err) {
+    console.error('Error fetching bills:', err)
+    throw err
+  }
+}
 
 export async function getExpiryRisks(daysThreshold = 120){
-  await wait(150)
-  const now = new Date()
-  const thresholdMs = daysThreshold * 24 * 60 * 60 * 1000
-  return PRODUCTS
-    .map(p => ({
-      ...p,
-      daysToExpiry: Math.ceil((new Date(p.expiry) - now) / (24*60*60*1000))
-    }))
-    .filter(p => p.daysToExpiry >= 0 && (new Date(p.expiry) - now) <= thresholdMs)
+  try {
+    const products = await getProducts()
+    const now = new Date()
+    const thresholdMs = daysThreshold * 24 * 60 * 60 * 1000
+    return products
+      .map(p => ({
+        ...p,
+        daysToExpiry: Math.ceil((new Date(p.expiry) - now) / (24*60*60*1000))
+      }))
+      .filter(p => p.daysToExpiry >= 0 && (new Date(p.expiry) - now) <= thresholdMs)
+  } catch (error) {
+    console.error('Error fetching expiry risks:', error)
+    throw error
+  }
 }
 
-export const api = axios.create({ baseURL: '/api' })
+export async function generateBill(items, grandTotal){
+  try {
+    const billItems = items.map(item => ({
+      productId: item.productId,
+      quantity: Number(item.qty)
+    }))
+    
+    const response = await axios.post(`${API_BASE_URL}/bills`, {
+      items: billItems,
+      grandTotal
+    })
+    
+    return response.data
+  } catch (error) {
+    console.error('Error generating bill:', error)
+    throw error
+  }
+}
+
+export const api = axios.create({ baseURL: 'http://localhost:5000/api' })
