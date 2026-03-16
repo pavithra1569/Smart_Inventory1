@@ -2,6 +2,7 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Bill = require('../models/Bill');
+const User = require('../models/User');
 
 async function connect() {
   await mongoose.connect(process.env.MONGO_URI);
@@ -17,6 +18,19 @@ async function seed(){
   try{
     await connect();
     console.log('Connected to MongoDB');
+
+    // Seed users
+    await User.deleteMany({ username: { $in: ['admin', 'user1', 'worker'] } });
+    const users = [
+      { username: 'admin', password: 'admin123', role: 'admin' },
+      { username: 'user1', password: 'user123', role: 'user' },
+      { username: 'worker', password: 'worker123', role: 'user' }
+    ];
+    for(const u of users){
+      const user = new User(u);
+      await user.save();
+    }
+    console.log('Seeded users: admin, user1, worker');
 
     const sampleProducts = [
       { name: 'SuperGrow Fertilizer', category: 'Fertilizer', price: 250, quantity: 50, unit: 'kg', expiry: daysFromNow(365) },

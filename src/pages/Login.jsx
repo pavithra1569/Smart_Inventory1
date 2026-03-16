@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { login as loginApi } from '../services/api'
 
 export default function Login({ onSuccess }){
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [user, setUser] = useState('')
+  const [pass, setPass] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const nav = useNavigate()
@@ -12,15 +12,17 @@ export default function Login({ onSuccess }){
   const submit = async e => {
     e.preventDefault()
     setError('')
-    if(!username || !password){ setError('Please enter username and password'); return }
+    if(!user || !pass){ setError('Please enter username and password'); return }
     setLoading(true)
     try{
-      await loginApi({ username, password })
-      onSuccess()
+      const { token, role, username } = await loginApi({ username: user, password: pass })
+      onSuccess(token, role, username)
       const to = loc.state?.from?.pathname || '/dashboard'
       nav(to, { replace: true })
     }catch(err){
-      setError('Invalid credentials')
+      console.error('Login error', err)
+      const message = err?.response?.data?.message || err.message || 'Invalid credentials'
+      setError(message)
     }finally{ setLoading(false) }
   }
   return (
@@ -35,11 +37,11 @@ export default function Login({ onSuccess }){
         <form onSubmit={submit} className="d-grid gap-3">
           <div>
             <label className="form-label">Username</label>
-            <input className="form-control" value={username} onChange={(e)=>setUsername(e.target.value)} />
+            <input className="form-control" value={user} onChange={(e)=>setUser(e.target.value)} />
           </div>
           <div>
             <label className="form-label">Password</label>
-            <input type="password" className="form-control" value={password} onChange={(e)=>setPassword(e.target.value)} />
+            <input type="password" className="form-control" value={pass} onChange={(e)=>setPass(e.target.value)} />
           </div>
           <button className="btn btn-agro" disabled={loading}>{loading?'Logging in...':'Login'}</button>
         </form>

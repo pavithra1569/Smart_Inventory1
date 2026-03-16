@@ -2,9 +2,27 @@ import axios from 'axios'
 
 const API_BASE_URL = 'http://localhost:5000/api'
 
+// Set up axios interceptor to include token
+axios.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export async function login({ username, password }){
-  if(username && password) return { token: 'ok' }
-  throw new Error('Invalid')
+  const response = await axios.post(`${API_BASE_URL}/auth/login`, { username, password });
+  const { token, role, username: user } = response.data;
+  localStorage.setItem('token', token);
+  localStorage.setItem('role', role);
+  localStorage.setItem('username', user);
+  return { token, role, username: user };
+}
+
+export function logout(){
+  localStorage.removeItem('token');
+  localStorage.removeItem('role');
 }
 
 // Product API calls
@@ -144,6 +162,52 @@ export async function getExpiryRisks(daysThreshold = 120){
       .filter(p => p.daysToExpiry >= 0 && (new Date(p.expiry) - now) <= thresholdMs)
   } catch (error) {
     console.error('Error fetching expiry risks:', error)
+    throw error
+  }
+}
+
+// Alert API calls
+export async function getAlerts(){
+  try {
+    const response = await axios.get(`${API_BASE_URL}/alerts`)
+    return response.data.map(alert => ({
+      ...alert,
+      id: alert._id
+    }))
+  } catch (error) {
+    console.error('Error fetching alerts:', error)
+    throw error
+  }
+}
+
+export async function getPendingAlerts(){
+  try {
+    const response = await axios.get(`${API_BASE_URL}/alerts/pending`)
+    return response.data.map(alert => ({
+      ...alert,
+      id: alert._id
+    }))
+  } catch (error) {
+    console.error('Error fetching pending alerts:', error)
+    throw error
+  }
+}
+
+export async function resolveAlert(alertId){
+  try {
+    const response = await axios.put(`${API_BASE_URL}/alerts/${alertId}/resolve`)
+    return response.data.alert
+  } catch (error) {
+    console.error('Error resolving alert:', error)
+    throw error
+  }
+}
+
+export async function deleteAlert(alertId){
+  try {
+    await axios.delete(`${API_BASE_URL}/alerts/${alertId}`)
+  } catch (error) {
+    console.error('Error deleting alert:', error)
     throw error
   }
 }

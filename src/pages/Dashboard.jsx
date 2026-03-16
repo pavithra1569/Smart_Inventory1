@@ -12,6 +12,7 @@ export default function Dashboard(){
   const [modal, setModal] = useState({ show: false, type: null })
   
   const { threshold } = useStockThreshold()
+  const role = localStorage.getItem('role')
 
   useEffect(()=>{
     const loadData = async () => {
@@ -83,17 +84,19 @@ export default function Dashboard(){
             </div>
           </div>
         </div>
-        <div className="col-6 col-lg-3">
-          <div className="metric-card shadow-sm" onClick={()=>setModal({show:true, type:'lowstock'})}>
-            <div className="metric-left">
-              <div className="metric-icon bg-warning"><FaExclamationTriangle/></div>
-            </div>
-            <div className="metric-right">
-              <div className="metric-label">Low Stock</div>
-              <div className="metric-value">{summary.lowStock}</div>
+        {role === 'admin' && (
+          <div className="col-6 col-lg-3">
+            <div className="metric-card shadow-sm" onClick={()=>setModal({show:true, type:'lowstock'})}>
+              <div className="metric-left">
+                <div className="metric-icon bg-warning"><FaExclamationTriangle/></div>
+              </div>
+              <div className="metric-right">
+                <div className="metric-label">Low Stock</div>
+                <div className="metric-value">{summary.lowStock}</div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
         <div className="col-6 col-lg-3">
           <div className="metric-card shadow-sm" onClick={()=>setModal({show:true, type:'sales'})}>
             <div className="metric-left">
@@ -105,20 +108,22 @@ export default function Dashboard(){
             </div>
           </div>
         </div>
-        <div className="col-6 col-lg-3">
-          <div className="metric-card shadow-sm" onClick={()=>setModal({show:true, type:'demand'})}>
-            <div className="metric-left">
-              <div className="metric-icon bg-info"><FaChartBar/></div>
-            </div>
-            <div className="metric-right">
-              <div className="metric-label">High Demand</div>
-              <div className="metric-value">{summary.highDemand}</div>
+        {role === 'admin' && (
+          <div className="col-6 col-lg-3">
+            <div className="metric-card shadow-sm" onClick={()=>setModal({show:true, type:'demand'})}>
+              <div className="metric-left">
+                <div className="metric-icon bg-info"><FaChartBar/></div>
+              </div>
+              <div className="metric-right">
+                <div className="metric-label">High Demand</div>
+                <div className="metric-value">{summary.highDemand}</div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {lowStockList.length>0 && (
+      {role === 'admin' && lowStockList.length>0 && (
         <div className="alert alert-low">
           <div className="fw-semibold mb-1">Low stock alert</div>
           <div className="small">Refill soon: {lowStockList.map(p=>p.name).join(', ')}</div>
@@ -135,23 +140,25 @@ export default function Dashboard(){
             <SalesLine data={salesTrends} />
           </div>
         </div>
-        <div className="col-12 col-lg-4">
-          <div className="card p-3 shadow-sm">
-            <div className="fw-semibold mb-2">Top Low Stock Items</div>
-            <div className="list-group list-group-flush">
-              {lowStockList.slice(0,6).map((p,i)=> (
-                <div key={p.id||i} className="d-flex justify-content-between align-items-center py-2">
-                  <div>
-                    <div className="fw-semibold small mb-0">{p.name}</div>
-                    <div className="text-muted small">{p.category}</div>
+        {role === 'admin' && (
+          <div className="col-12 col-lg-4">
+            <div className="card p-3 shadow-sm">
+              <div className="fw-semibold mb-2">Top Low Stock Items</div>
+              <div className="list-group list-group-flush">
+                {lowStockList.slice(0,6).map((p,i)=> (
+                  <div key={p.id||i} className="d-flex justify-content-between align-items-center py-2">
+                    <div>
+                      <div className="fw-semibold small mb-0">{p.name}</div>
+                      <div className="text-muted small">{p.category}</div>
+                    </div>
+                    <div className={`fw-bold ${p.quantity<threshold?'text-danger':''}`}>{p.quantity}</div>
                   </div>
-                  <div className={`fw-bold ${p.quantity<threshold?'text-danger':''}`}>{p.quantity}</div>
-                </div>
-              ))}
-              {lowStockList.length===0 && <div className="text-muted small">No low stock items</div>}
+                ))}
+                {lowStockList.length===0 && <div className="text-muted small">No low stock items</div>}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {modal.show && modalContent && (

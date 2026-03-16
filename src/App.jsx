@@ -11,9 +11,11 @@ import Analysis from './pages/Analysis'
 
 function useAuth(){
   const [token, setToken] = useState(() => localStorage.getItem('token'))
-  const login = (t) => { localStorage.setItem('token', t); setToken(t) }
-  const logout = () => { localStorage.removeItem('token'); setToken(null) }
-  return { token, login, logout }
+  const [role, setRole] = useState(() => localStorage.getItem('role'))
+  const [username, setUsername] = useState(() => localStorage.getItem('username'))
+  const login = (t, r, u) => { setToken(t); setRole(r); setUsername(u) }
+  const logout = () => { localStorage.removeItem('token'); localStorage.removeItem('role'); localStorage.removeItem('username'); setToken(null); setRole(null); setUsername(null) }
+  return { token, role, username, login, logout }
 }
 
 function Protected({ children }){
@@ -24,32 +26,33 @@ function Protected({ children }){
 }
 
 export default function App(){
-  const { token, logout, login } = useAuth()
+  const { token, role, username, logout, login } = useAuth()
   const isAuthed = !!token
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const toggleSidebar = () => setSidebarOpen(v => !v)
+  const defaultPath = role === 'admin' ? '/dashboard' : '/products'
   const layout = useMemo(() => (
     <div className="d-flex">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} role={role} username={username} />
       <div className="flex-grow-1 content-shift">
-        <Navbar onMenuClick={toggleSidebar} onLogout={logout} />
+        <Navbar onMenuClick={toggleSidebar} onLogout={logout} username={username} role={role} />
         <div className="container py-4">
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+            <Route path="/" element={<Navigate to={defaultPath} replace />} />
+            {role === 'admin' && <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />}
             <Route path="/products" element={<Protected><Products /></Protected>} />
             <Route path="/billing" element={<Protected><Billing /></Protected>} />
             <Route path="/inventory" element={<Protected><Inventory /></Protected>} />
-            <Route path="/analysis" element={<Protected><Analysis /></Protected>} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            {role === 'admin' && <Route path="/analysis" element={<Protected><Analysis /></Protected>} />}
+            <Route path="*" element={<Navigate to={defaultPath} replace />} />
           </Routes>
         </div>
       </div>
     </div>
-  ), [sidebarOpen])
+  ), [sidebarOpen, role])
   return (
     <Routes>
-      <Route path="/login" element={<Login onSuccess={() => login('demo-token')} />} />
+      <Route path="/login" element={<Login onSuccess={(token, role, username) => login(token, role, username)} />} />
       <Route path="/*" element={isAuthed ? layout : <Navigate to="/login" replace />} />
     </Routes>
   )
