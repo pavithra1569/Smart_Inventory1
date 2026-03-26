@@ -1,44 +1,81 @@
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
 require("dotenv").config();
 
-const WHATSAPP_API_TOKEN = process.env.WHATSAPP_API_TOKEN;
-const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const ADMIN_WHATSAPP_NUMBER = process.env.ADMIN_WHATSAPP_NUMBER;
-const API_VERSION = process.env.WHATSAPP_API_VERSION || "v17.0";
+let client;
+let isReady = false;
 
-const BASE_URL = `https://graph.facebook.com/${API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+function initializeWhatsApp() {
+    console.log("Initializing WhatsApp Bot...");
+    client = new Client({
+        authStrategy: new LocalAuth(),
+        puppeteer: {
+            headless: true,
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--disable-features=CalculateNativeWinOcclusion'
+            ],
+            timeout: 60000 // 60 seconds timeout
+        }
+    });
 
-async function sendLowStockAlert(productName, currentQuantity, threshold) {
-  if (!WHATSAPP_API_TOKEN || !WHATSAPP_PHONE_NUMBER_ID || !ADMIN_WHATSAPP_NUMBER) {
-    throw new Error("WhatsApp Cloud API is not configured. Please set WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, and ADMIN_WHATSAPP_NUMBER in your .env file.");
-  }
+    client.on('qr', (qr) => {
+        console.log('\n==================================================');
+        console.log('SCAN THIS QR CODE WITH YOUR WHATSAPP TO LOG IN');
+        console.log('==================================================');
+        qrcode.generate(qr, { small: true });
+    });
 
-  const body = {
-    messaging_product: "whatsapp",
-    to: ADMIN_WHATSAPP_NUMBER,
-    type: "text",
-    text: {
-      body: `⚠️ LOW STOCK ALERT\n\nProduct: ${productName}\nCurrent Stock: ${currentQuantity} units\nThreshold: ${threshold} units\n\nPlease reorder immediately.`
-    }
-  };
+    client.on('ready', () => {
+        console.log('\n================================');
+        console.log('📱 WhatsApp Client is READY!');
+        console.log('================================\n');
+        isReady = true;
+    });
 
-  const response = await fetch(BASE_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${WHATSAPP_API_TOKEN}`
-    },
-    body: JSON.stringify(body)
-  });
+    client.on('auth_failure', msg => {
+        console.error('AUTHENTICATION FAILURE', msg);
+    });
 
-  if (!response.ok) {
-    const text = await response.text();
-    console.error("WhatsApp Cloud API error:", response.status, text);
-    throw new Error(`WhatsApp Cloud API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  console.log("WhatsApp alert sent:", data);
-  return { success: true, data };
+    client.initialize();
 }
 
-module.exports = { sendLowStockAlert };
+async function sendLowStockAlert(productName, currentQuantity, threshold) {
+    if (!isReady || !client) {
+        throw new Error("WhatsApp bot is not ready yet. Please check the terminal.");
+    }
+
+    const { ADMIN_WHATSAPP_NUMBER } = process.env;
+
+    if (!ADMIN_WHATSAPP_NUMBER) {
+        throw new Error("ADMIN_WHATSAPP_NUMBER is not set in .env");
+    }
+
+    // Format the number so it works with whatsapp-web.js (e.g. 1234567890@c.us)
+    // ADMIN_WHATSAPP_NUMBER normally looks like "whatsapp:+1234567890" in your .env
+    let formattedNumber = ADMIN_WHATSAPP_NUMBER.replace(/[^0-9]/g, '');
+    const chatId = `${formattedNumber}@c.us`;
+
+    const message = `⚠️ LOW STOCK ALERT\n\nProduct: ${productName}\nCurrent Stock: ${currentQuantity} units\nThreshold: ${threshold} units\n\nPlease reorder immediately.`;
+
+    try {
+        await client.sendMessage(chatId, message);
+        console.log("WhatsApp alert sent via whatsapp-web.js!");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to send WhatsApp message:", error);
+        throw error;
+    }
+}
+
+module.exports = { initializeWhatsApp, sendLowStockAlert };
+
